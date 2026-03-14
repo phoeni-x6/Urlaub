@@ -20,12 +20,7 @@ const discoverSriLanka = [
   { name: "Wildlife Safaris", href: "/discover/wildlife-safaris" },
 ];
 
-const travelInformation = [
-  { name: "Visa Information", href: "/information/visa" },
-  { name: "Transport Guide", href: "/information/transport" },
-  { name: "Best Time to Visit", href: "/information/best-time" },
-  { name: "Travel Tips", href: "/information/tips" },
-];
+
 
 type DropdownProps = {
   title: string;
@@ -230,11 +225,16 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <DesktopDropdown
-            title="Travel Information"
-            items={travelInformation}
-            pathname={pathname}
-          />
+         <Link href="/information" className={navLinkClass("/information")}>
+  <span className="relative">
+    Travel Information
+    <span
+      className={`absolute -bottom-1 left-0 h-[2px] rounded-full bg-primary transition-all duration-300 ${
+        pathname === "/information" ? "w-full" : "w-0"
+      }`}
+    />
+  </span>
+</Link>
 
           <Link href="/about" className={navLinkClass("/about")}>
             <span className="relative">
@@ -344,14 +344,13 @@ export default function Navbar() {
               Hotels
             </Link>
 
-            <MobileDropdown
-              title="Travel Information"
-              items={travelInformation}
-              isOpen={openMobileDropdown === "info"}
-              onToggle={() => toggleMobileDropdown("info")}
-              onLinkClick={closeMobileMenu}
-              pathname={pathname}
-            />
+            <Link
+  href="/information"
+  onClick={closeMobileMenu}
+  className={mobileLinkClass("/information")}
+>
+  Travel Information
+</Link>
 
             <Link
               href="/about"

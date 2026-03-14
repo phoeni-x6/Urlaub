@@ -44,7 +44,7 @@ export default function Home() {
       <div className="relative">
         <div className="absolute inset-0 scale-110 rounded-full bg-accent/20 blur-3xl" />
         <Image
-  src="/mascot/mascot1.png"
+  src="/mascot/mascot3.png"
   alt="Sri Lanka travel mascot"
   width={700}
   height={700}

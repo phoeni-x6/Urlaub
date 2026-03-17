@@ -7,7 +7,7 @@ const blogs = [
     title: "7 Hidden Beaches in Sri Lanka You Should Visit",
     excerpt:
       "From quiet southern bays to untouched coastal gems, discover beach escapes beyond the usual tourist trail.",
-    image: "/blogs/beach.jpg",
+    image: "/packages/adventure.jfif",
     date: "12 Mar 2026",
     category: "Beach Travel",
     href: "/blog/hidden-beaches-sri-lanka",
@@ -16,7 +16,7 @@ const blogs = [
     title: "A Complete Ella Travel Guide for First-Time Visitors",
     excerpt:
       "Plan your hill country escape with the best viewpoints, train rides, cafés, and stays in Ella.",
-    image: "/blogs/ella.jpg",
+    image: "/packages/classic.jfif",
     date: "08 Mar 2026",
     category: "Travel Guide",
     href: "/blog/ella-travel-guide",
@@ -25,7 +25,7 @@ const blogs = [
     title: "Best Luxury Stays for a Romantic Getaway",
     excerpt:
       "Explore handpicked resorts and boutique villas perfect for honeymoons and unforgettable couple experiences.",
-    image: "/blogs/luxury.jpg",
+    image: "/packages/romance.jfif",
     date: "03 Mar 2026",
     category: "Luxury",
     href: "/blog/luxury-romantic-stays",
@@ -51,7 +51,7 @@ export default function LatestBlogs() {
           </div>
 
           <Link
-            href="/blog"
+            href="/discover"
             className="inline-flex items-center gap-2 self-start rounded-full border border-primary px-5 py-3 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
           >
             View All Blogs

@@ -5,7 +5,22 @@ import ReviewSlideshow from "@/components/ReviewSlideshow";
 import Footer from "@/components/Footer";
 import ParallaxBanner from "@/components/ParallaxBanner";
 import GallerySection from "@/components/GallerySection";
+import LogoLoop from "@/components/LogoLoop";
 import Image from "next/image";
+
+const partnerLogos = [
+  { name: "Booking", src: "/logos/logo1.svg" },
+  { name: "Airbnb", src: "/logos/logo2.svg" },
+  { name: "Tripadvisor", src: "/logos/logo3.svg" },
+  { name: "Expedia", src: "/logos/logo4.svg" },
+  { name: "Agoda", src: "/logos/logo5.svg" },
+  { name: "Sri Lanka Tourism", src: "/logos/logo6.svg" },
+  { name: "Sri Lanka Tourism", src: "/logos/logo7.svg" },
+  { name: "Sri Lanka Tourism", src: "/logos/logo8.svg" },
+  { name: "Sri Lanka Tourism", src: "/logos/logo9.svg" },
+  { name: "Sri Lanka Tourism", src: "/logos/logo10.svg" },
+  { name: "Sri Lanka Tourism", src: "/logos/logo11.svg" },
+];
 
 export default function Home() {
   return (
@@ -61,6 +76,11 @@ export default function Home() {
 
        <PackageCategories />
        <ParallaxBanner />
+       <LogoLoop
+        logos={partnerLogos}
+        speed="normal"
+        title="Our travel network"
+      />
        <LatestBlogs />
        <GallerySection />
        <ReviewSlideshow />

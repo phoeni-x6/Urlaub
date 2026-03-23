@@ -9,7 +9,7 @@ const galleryItems = [
     title: "Golden Beach Escape",
     category: "Coastal",
     image:
-      "",
+      "/gallery/golden-beaches.jpeg",
     className: "md:col-span-2 md:row-span-2",
   },
   {
@@ -17,7 +17,7 @@ const galleryItems = [
     title: "Misty Mountain Trails",
     category: "Highlands",
     image:
-      "",
+      "/gallery/misty-mountains.jfif",
     className: "md:col-span-1 md:row-span-1",
   },
   {
@@ -25,7 +25,7 @@ const galleryItems = [
     title: "Tropical Hideaways",
     category: "Nature",
     image:
-      "",
+      "/gallery/tropicals.jfif",
     className: "md:col-span-1 md:row-span-2",
   },
   {
@@ -33,17 +33,10 @@ const galleryItems = [
     title: "Cultural Journeys",
     category: "Heritage",
     image:
-      "",
+      "/gallery/culture.jfif",
     className: "md:col-span-1 md:row-span-1",
   },
-  {
-    id: 5,
-    title: "Luxury Stays",
-    category: "Stay",
-    image:
-      "",
-    className: "md:col-span-2 md:row-span-1",
-  },
+
 ];
 
 export default function GallerySection() {
@@ -65,18 +58,7 @@ export default function GallerySection() {
             </h2>
           </div>
 
-          <div className="max-w-md">
-            <p className="text-base leading-7 text-[#4d5c53]">
-              A curated gallery of beaches, mountains, stays, and cultural
-              escapes designed to inspire your next journey.
-            </p>
-            <Link
-              href="/gallery"
-              className="mt-5 inline-flex items-center rounded-full bg-[#1f3b2d] px-6 py-3 text-sm font-semibold text-white transition hover:scale-105 hover:bg-[#163024]"
-            >
-              View Full Gallery
-            </Link>
-          </div>
+          
         </div>
 
         {/* Gallery Grid */}

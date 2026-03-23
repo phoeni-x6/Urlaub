@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Calendar,
   DollarSign,
@@ -69,8 +69,22 @@ const uploadBlogImage = async (file: File) => {
   return data.publicUrl;
 };
 
+const getStoragePathFromPublicUrl = (publicUrl: string) => {
+  try {
+    const marker = "/storage/v1/object/public/blog-images/";
+    const index = publicUrl.indexOf(marker);
+
+    if (index === -1) return null;
+
+    return decodeURIComponent(publicUrl.substring(index + marker.length));
+  } catch {
+    return null;
+  }
+};
+
 export default function AdminManagePage() {
   const router = useRouter();
+  const blogFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [travelPackages, setTravelPackages] =
     useState<TravelPackage[]>(initialTravelPackages);
@@ -78,9 +92,11 @@ export default function AdminManagePage() {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [blogsLoading, setBlogsLoading] = useState(true);
   const [blogSubmitting, setBlogSubmitting] = useState(false);
+  const [blogDeletingId, setBlogDeletingId] = useState<number | null>(null);
   const [blogError, setBlogError] = useState("");
   const [blogSuccess, setBlogSuccess] = useState("");
   const [blogImageFile, setBlogImageFile] = useState<File | null>(null);
+  const [editingBlogId, setEditingBlogId] = useState<number | null>(null);
 
   const [packageForm, setPackageForm] = useState({
     title: "",
@@ -109,6 +125,22 @@ export default function AdminManagePage() {
 
     fetchBlogs();
   }, [router]);
+
+  const resetBlogForm = () => {
+    setBlogForm({
+      title: "",
+      category: "Cultural Heritage",
+      author: "Admin",
+      description: "",
+      status: "Draft",
+    });
+    setBlogImageFile(null);
+    setEditingBlogId(null);
+
+    if (blogFileInputRef.current) {
+      blogFileInputRef.current.value = "";
+    }
+  };
 
   const fetchBlogs = async () => {
     setBlogsLoading(true);
@@ -153,9 +185,7 @@ export default function AdminManagePage() {
       location: packageForm.location,
       duration: packageForm.duration || "Custom Duration",
       price: packageForm.price,
-      image:
-        packageForm.image ||
-        "/packages/adventure.jfif",
+      image: packageForm.image || "/packages/adventure.jfif",
       status: packageForm.status,
     };
 
@@ -172,6 +202,67 @@ export default function AdminManagePage() {
     });
   };
 
+  const handleEditBlog = (blog: BlogPost) => {
+    setBlogError("");
+    setBlogSuccess("");
+    setEditingBlogId(blog.id);
+    setBlogImageFile(null);
+
+    setBlogForm({
+      title: blog.title,
+      category: blog.category,
+      author: blog.author,
+      description: blog.description,
+      status: blog.status,
+    });
+
+    if (blogFileInputRef.current) {
+      blogFileInputRef.current.value = "";
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteBlog = async (blog: BlogPost) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${blog.title}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setBlogError("");
+      setBlogSuccess("");
+      setBlogDeletingId(blog.id);
+
+      const { error } = await supabase.from("blogs").delete().eq("id", blog.id);
+
+      if (error) {
+        setBlogError(error.message);
+        return;
+      }
+
+      const storagePath = getStoragePathFromPublicUrl(blog.coverImage);
+      if (storagePath) {
+        await supabase.storage.from("blog-images").remove([storagePath]);
+      }
+
+      setBlogs((prev) => prev.filter((item) => item.id !== blog.id));
+
+      if (editingBlogId === blog.id) {
+        resetBlogForm();
+      }
+
+      setBlogSuccess("Blog post deleted successfully.");
+    } catch (err: any) {
+      setBlogError(
+        err?.message || "Something went wrong while deleting the blog post."
+      );
+    } finally {
+      setBlogDeletingId(null);
+    }
+  };
+
   const handleAddBlog = async (e: React.FormEvent) => {
     e.preventDefault();
     setBlogError("");
@@ -182,13 +273,83 @@ export default function AdminManagePage() {
       return;
     }
 
-    if (!blogImageFile) {
-      setBlogError("Please select a cover image.");
-      return;
-    }
-
     try {
       setBlogSubmitting(true);
+
+      if (editingBlogId) {
+        const existingBlog = blogs.find((item) => item.id === editingBlogId);
+
+        if (!existingBlog) {
+          setBlogError("Selected blog post was not found.");
+          return;
+        }
+
+        let imageUrl = existingBlog.coverImage;
+
+        if (blogImageFile) {
+          imageUrl = await uploadBlogImage(blogImageFile);
+
+          const oldStoragePath = getStoragePathFromPublicUrl(
+            existingBlog.coverImage
+          );
+
+          if (oldStoragePath) {
+            await supabase.storage.from("blog-images").remove([oldStoragePath]);
+          }
+        }
+
+        const updatedSlug =
+          existingBlog.title !== blogForm.title.trim()
+            ? `${createSlug(blogForm.title)}-${editingBlogId}`
+            : existingBlog.slug;
+
+        const payload = {
+          title: blogForm.title.trim(),
+          slug: updatedSlug,
+          category: blogForm.category,
+          author: blogForm.author.trim() || "Admin",
+          cover_image: imageUrl,
+          description: blogForm.description,
+          status: blogForm.status,
+        };
+
+        const { data, error } = await supabase
+          .from("blogs")
+          .update(payload)
+          .eq("id", editingBlogId)
+          .select()
+          .single();
+
+        if (error) {
+          setBlogError(error.message);
+          return;
+        }
+
+        const updatedBlog: BlogPost = {
+          id: data.id,
+          title: data.title,
+          slug: data.slug || "",
+          category: data.category,
+          author: data.author,
+          coverImage: data.cover_image || "",
+          description: data.description || "",
+          status: data.status,
+          created_at: data.created_at,
+        };
+
+        setBlogs((prev) =>
+          prev.map((item) => (item.id === editingBlogId ? updatedBlog : item))
+        );
+
+        resetBlogForm();
+        setBlogSuccess("Blog post updated successfully.");
+        return;
+      }
+
+      if (!blogImageFile) {
+        setBlogError("Please select a cover image.");
+        return;
+      }
 
       const baseSlug = createSlug(blogForm.title);
       const uniqueSlug = `${baseSlug}-${Date.now()}`;
@@ -229,16 +390,7 @@ export default function AdminManagePage() {
       };
 
       setBlogs((prev) => [newBlog, ...prev]);
-
-      setBlogForm({
-        title: "",
-        category: "Cultural Heritage",
-        author: "Admin",
-        description: "",
-        status: "Draft",
-      });
-
-      setBlogImageFile(null);
+      resetBlogForm();
       setBlogSuccess("Blog post saved successfully.");
     } catch (err: any) {
       setBlogError(
@@ -457,9 +609,13 @@ export default function AdminManagePage() {
                       <FileText className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold">Add Blog Post</h3>
+                      <h3 className="text-lg font-bold">
+                        {editingBlogId ? "Edit Blog Post" : "Add Blog Post"}
+                      </h3>
                       <p className="text-sm text-[#5f7d74]">
-                        Create a new blog card for the website.
+                        {editingBlogId
+                          ? "Update the selected blog post."
+                          : "Create a new blog card for the website."}
                       </p>
                     </div>
                   </div>
@@ -507,9 +663,10 @@ export default function AdminManagePage() {
 
                     <div>
                       <label className="mb-2 block text-sm font-medium">
-                        Cover Image
+                        Cover Image {editingBlogId ? "(optional)" : ""}
                       </label>
                       <input
+                        ref={blogFileInputRef}
                         type="file"
                         accept="image/*"
                         onChange={(e) => {
@@ -521,6 +678,11 @@ export default function AdminManagePage() {
                       {blogImageFile && (
                         <p className="mt-2 text-xs text-[#5f7d74]">
                           Selected: {blogImageFile.name}
+                        </p>
+                      )}
+                      {editingBlogId && !blogImageFile && (
+                        <p className="mt-2 text-xs text-[#5f7d74]">
+                          Leave empty to keep the current cover image.
                         </p>
                       )}
                     </div>
@@ -568,13 +730,31 @@ export default function AdminManagePage() {
                       </div>
                     )}
 
-                    <button
-                      type="submit"
-                      disabled={blogSubmitting}
-                      className="w-full rounded-2xl bg-[#0d5c46] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#094735] disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {blogSubmitting ? "Saving..." : "Save Blog Post"}
-                    </button>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="submit"
+                        disabled={blogSubmitting}
+                        className="flex-1 rounded-2xl bg-[#0d5c46] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#094735] disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {blogSubmitting
+                          ? editingBlogId
+                            ? "Updating..."
+                            : "Saving..."
+                          : editingBlogId
+                          ? "Update Blog Post"
+                          : "Save Blog Post"}
+                      </button>
+
+                      {editingBlogId && (
+                        <button
+                          type="button"
+                          onClick={resetBlogForm}
+                          className="rounded-2xl border border-[#d7e5df] bg-white px-5 py-4 text-sm font-semibold text-[#123128] transition hover:bg-[#f8fbfa]"
+                        >
+                          Cancel Edit
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -664,11 +844,22 @@ export default function AdminManagePage() {
                               </div>
 
                               <div className="mt-5 flex flex-wrap gap-3">
-                                <button className="rounded-2xl bg-[#0d5c46] px-4 py-2.5 text-sm font-semibold text-white">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditBlog(item)}
+                                  className="rounded-2xl bg-[#0d5c46] px-4 py-2.5 text-sm font-semibold text-white"
+                                >
                                   Edit
                                 </button>
-                                <button className="rounded-2xl border border-[#d7e5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#123128]">
-                                  Delete
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBlog(item)}
+                                  disabled={blogDeletingId === item.id}
+                                  className="rounded-2xl border border-[#d7e5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#123128] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {blogDeletingId === item.id
+                                    ? "Deleting..."
+                                    : "Delete"}
                                 </button>
                               </div>
                             </div>

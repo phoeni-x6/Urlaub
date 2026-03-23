@@ -11,9 +11,29 @@ type PageProps = {
   };
 };
 
+const decodeHtmlEntities = (text: string) => {
+  if (!text) return "";
+
+  return text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#x2F;/gi, "/");
+};
+
 const stripHtml = (html: string) => {
   if (!html) return "";
-  return html.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+
+  return decodeHtmlEntities(html)
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/p>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 const formatDate = (dateString?: string) => {
@@ -33,6 +53,33 @@ const normalizeCoverImage = (url?: string) => {
   return url;
 };
 
+const normalizeBlogHtml = (html?: string) => {
+  if (!html) return "";
+
+  let cleaned = decodeHtmlEntities(html)
+    .replace(/&nbsp;/gi, " ")
+    .replace(/<p>\s*<\/p>/gi, "")
+    .replace(/<p>(\s|<br\s*\/?>|&nbsp;)*<\/p>/gi, "")
+    .trim();
+
+  // If content comes as plain text or badly formatted editor output,
+  // convert paragraph breaks into proper <p> tags.
+  const hasHtmlBlocks = /<(p|h1|h2|h3|h4|ul|ol|li|blockquote|img|table)\b/i.test(
+    cleaned
+  );
+
+  if (!hasHtmlBlocks) {
+    cleaned = cleaned
+      .split(/\n\s*\n/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean)
+      .map((paragraph) => `<p>${paragraph}</p>`)
+      .join("");
+  }
+
+  return cleaned;
+};
+
 export default async function BlogDetailPage({ params }: PageProps) {
   const { slug } = await params;
 
@@ -46,6 +93,8 @@ export default async function BlogDetailPage({ params }: PageProps) {
   if (error || !blog) {
     notFound();
   }
+
+  const normalizedBlogHtml = normalizeBlogHtml(blog.description || "");
 
   const { data: relatedData } = await supabasePublic
     .from("blogs")
@@ -116,9 +165,11 @@ export default async function BlogDetailPage({ params }: PageProps) {
             {blog.title}
           </h1>
 
-          <p className="mt-6 max-w-3xl text-lg leading-8 text-textsecondary">
-            {blogExcerpt}
-          </p>
+          {blogExcerpt && (
+            <p className="mt-6 max-w-3xl text-lg leading-8 text-textsecondary">
+              {blogExcerpt}
+            </p>
+          )}
         </div>
       </section>
 
@@ -137,13 +188,25 @@ export default async function BlogDetailPage({ params }: PageProps) {
       </section>
 
       <section className="px-6 py-12 lg:px-10">
-        <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[1fr_280px]">
+        <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
           <article
-            className="prose prose-lg max-w-none prose-headings:text-textmain prose-p:text-textsecondary prose-a:text-primary"
-            dangerouslySetInnerHTML={{ __html: blog.description || "" }}
+            className="
+              min-w-0 overflow-hidden break-words
+              prose prose-lg max-w-none
+              prose-headings:font-bold prose-headings:text-textmain
+              prose-h2:mt-10 prose-h2:text-3xl
+              prose-h3:mt-8 prose-h3:text-2xl
+              prose-p:leading-8 prose-p:text-textsecondary
+              prose-li:text-textsecondary
+              prose-strong:text-textmain
+              prose-a:text-primary
+              prose-img:rounded-2xl
+              prose-blockquote:border-primary prose-blockquote:text-textsecondary
+            "
+            dangerouslySetInnerHTML={{ __html: normalizedBlogHtml }}
           />
 
-          <aside className="h-fit rounded-[28px] border border-borderlight bg-background/60 p-6">
+          <aside className="h-fit rounded-[28px] border border-borderlight bg-background/60 p-6 lg:sticky lg:top-24">
             <h2 className="text-xl font-semibold text-textmain">
               Article Info
             </h2>

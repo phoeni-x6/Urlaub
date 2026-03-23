@@ -26,20 +26,15 @@ type BlogPost = {
   author: string;
   date: string;
   coverImage: string;
-  excerpt: string;
-};
-
-const stripHtml = (html: string) => {
-  if (!html) return "";
-  return html.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 };
 
 const normalizeCoverImage = (url?: string) => {
   if (!url) return "/packages/adventure.jfif";
-  // Avoid remote images that need extra Next.js config (e.g., Unsplash)
+
   if (url.includes("images.unsplash.com") || url.includes("unsplash.com")) {
     return "/packages/adventure.jfif";
   }
+
   return url;
 };
 
@@ -66,7 +61,7 @@ export default function BlogsPage() {
       const { data, error } = await supabasePublic
         .from("blogs")
         .select(
-          "id, title, slug, category, author, cover_image, description, created_at, status"
+          "id, title, slug, category, author, cover_image, created_at, status"
         )
         .eq("status", "Published")
         .order("created_at", { ascending: false });
@@ -78,23 +73,15 @@ export default function BlogsPage() {
       }
 
       const formattedBlogs: BlogPost[] =
-        data?.map((item) => {
-          const plainText = stripHtml(item.description || "");
-
-          return {
-            id: item.id,
-            title: item.title,
-            slug: item.slug,
-            category: item.category,
-            author: item.author || "Admin",
-            date: formatDate(item.created_at),
-            coverImage: normalizeCoverImage(item.cover_image),
-            excerpt:
-              plainText.length > 140
-                ? `${plainText.slice(0, 140)}...`
-                : plainText,
-          };
-        }) || [];
+        data?.map((item) => ({
+          id: item.id,
+          title: item.title,
+          slug: item.slug,
+          category: item.category,
+          author: item.author || "Admin",
+          date: formatDate(item.created_at),
+          coverImage: normalizeCoverImage(item.cover_image),
+        })) || [];
 
       setBlogs(formattedBlogs);
       setLoading(false);
@@ -114,14 +101,17 @@ export default function BlogsPage() {
 
       <section className="relative overflow-hidden px-6 py-20 lg:px-10">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-white to-accent/10" />
+
         <div className="relative mx-auto max-w-7xl text-center">
           <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-primary">
             Travel Stories & Insights
           </p>
+
           <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-tight text-textmain md:text-5xl">
             Discover Sri Lanka through inspiring stories, culture, wellness,
             and unforgettable travel experiences
           </h1>
+
           <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-textsecondary md:text-lg">
             Explore handpicked articles from Urlaub that help travelers
             experience Sri Lanka in a more meaningful, authentic, and memorable
@@ -226,10 +216,6 @@ export default function BlogsPage() {
                         {blog.title}
                       </h3>
                     </Link>
-
-                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-textsecondary">
-                      {blog.excerpt}
-                    </p>
 
                     <div className="mt-5 flex items-center justify-between">
                       <p className="text-sm font-medium text-textsecondary">

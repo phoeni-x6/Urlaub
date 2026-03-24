@@ -19,6 +19,7 @@ import RichTextEditor from "@/components/admin/RichTextEditor";
 import {
   blogCategories,
   initialTravelPackages,
+  packageCategoryOptions,
   TravelPackage,
 } from "@/lib/admin-data";
 import { createClient } from "@/lib/supabase/client";
@@ -45,6 +46,11 @@ const createSlug = (text: string) =>
     .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+
+const stripHtml = (html: string) => {
+  if (!html) return "";
+  return html.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+};
 
 const uploadBlogImage = async (file: File) => {
   const fileExt = file.name.split(".").pop();
@@ -82,6 +88,41 @@ const getStoragePathFromPublicUrl = (publicUrl: string) => {
   }
 };
 
+type ItineraryDayForm = {
+  day: number;
+  title: string;
+  itemsText: string;
+};
+
+const createEmptyPackageForm = () => ({
+  category: "round-tours",
+  title: "",
+  slug: "",
+  subtitle: "",
+  shortDescription: "",
+  longDescription: "",
+  overviewTitle: "",
+  location: "",
+  route: "",
+  routeSummary: "",
+  duration: "",
+  price: "",
+  image: "",
+  heroImage: "",
+  mapImage: "",
+  galleryImagesText: "",
+  travelStyle: "",
+  guideInfo: "",
+  accommodation: "",
+  meals: "",
+  flightInfo: "",
+  roomType: "",
+  highlights: "",
+  upgradeNote: "",
+  includedExperiencesText: "",
+  status: "Draft" as "Published" | "Draft",
+});
+
 export default function AdminManagePage() {
   const router = useRouter();
   const blogFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -98,15 +139,18 @@ export default function AdminManagePage() {
   const [blogImageFile, setBlogImageFile] = useState<File | null>(null);
   const [editingBlogId, setEditingBlogId] = useState<number | null>(null);
 
-  const [packageForm, setPackageForm] = useState({
-    title: "",
-    location: "",
-    duration: "",
-    price: "",
-    image: "",
-    description: "",
-    status: "Draft" as "Published" | "Draft",
-  });
+  const [packageForm, setPackageForm] = useState(createEmptyPackageForm());
+  const [packageSuccess, setPackageSuccess] = useState("");
+  const [packageError, setPackageError] = useState("");
+  const [editingPackageId, setEditingPackageId] = useState<number | null>(null);
+
+  const [itineraryDays, setItineraryDays] = useState<ItineraryDayForm[]>([
+    {
+      day: 1,
+      title: "",
+      itemsText: "",
+    },
+  ]);
 
   const [blogForm, setBlogForm] = useState({
     title: "",
@@ -142,6 +186,20 @@ export default function AdminManagePage() {
     }
   };
 
+  const resetPackageForm = () => {
+    setPackageForm(createEmptyPackageForm());
+    setItineraryDays([
+      {
+        day: 1,
+        title: "",
+        itemsText: "",
+      },
+    ]);
+    setEditingPackageId(null);
+    setPackageError("");
+    setPackageSuccess("");
+  };
+
   const fetchBlogs = async () => {
     setBlogsLoading(true);
     setBlogError("");
@@ -174,32 +232,200 @@ export default function AdminManagePage() {
     setBlogsLoading(false);
   };
 
+  const parseLines = (text: string) =>
+    text
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const handleAddItineraryDay = () => {
+    setItineraryDays((prev) => [
+      ...prev,
+      {
+        day: prev.length + 1,
+        title: "",
+        itemsText: "",
+      },
+    ]);
+  };
+
+  const handleRemoveItineraryDay = (dayNumber: number) => {
+    const filtered = itineraryDays.filter((item) => item.day !== dayNumber);
+    const resequenced = filtered.map((item, index) => ({
+      ...item,
+      day: index + 1,
+    }));
+    setItineraryDays(
+      resequenced.length > 0
+        ? resequenced
+        : [{ day: 1, title: "", itemsText: "" }]
+    );
+  };
+
+  const handleItineraryChange = (
+    dayNumber: number,
+    key: "title" | "itemsText",
+    value: string
+  ) => {
+    setItineraryDays((prev) =>
+      prev.map((item) =>
+        item.day === dayNumber ? { ...item, [key]: value } : item
+      )
+    );
+  };
+
   const handleAddPackage = (e: React.FormEvent) => {
     e.preventDefault();
+    setPackageError("");
+    setPackageSuccess("");
 
-    if (!packageForm.title || !packageForm.location || !packageForm.price) return;
+    if (!packageForm.title.trim()) {
+      setPackageError("Package title is required.");
+      return;
+    }
+
+    if (!packageForm.category.trim()) {
+      setPackageError("Package category is required.");
+      return;
+    }
+
+    if (!packageForm.price.trim()) {
+      setPackageError("Package price is required.");
+      return;
+    }
+
+    const finalSlug = packageForm.slug.trim()
+      ? createSlug(packageForm.slug)
+      : createSlug(packageForm.title);
+
+    const parsedGalleryImages = parseLines(packageForm.galleryImagesText);
+    const parsedIncludedExperiences = parseLines(
+      packageForm.includedExperiencesText
+    );
+    const parsedItinerary = itineraryDays
+      .filter(
+        (item) => item.title.trim() || item.itemsText.trim()
+      )
+      .map((item) => ({
+        day: item.day,
+        title: item.title.trim() || `Day ${item.day}`,
+        items: parseLines(item.itemsText),
+      }));
 
     const newPackage: TravelPackage = {
-      id: Date.now(),
-      title: packageForm.title,
-      location: packageForm.location,
-      duration: packageForm.duration || "Custom Duration",
-      price: packageForm.price,
-      image: packageForm.image || "/packages/adventure.jfif",
+      id: editingPackageId || Date.now(),
+      category: packageForm.category,
+      title: packageForm.title.trim(),
+      slug: finalSlug,
+      subtitle: packageForm.subtitle.trim(),
+      shortDescription: packageForm.shortDescription.trim(),
+      longDescription: packageForm.longDescription.trim(),
+      overviewTitle: packageForm.overviewTitle.trim(),
+      location: packageForm.location.trim(),
+      route: packageForm.route.trim(),
+      routeSummary: packageForm.routeSummary.trim(),
+      duration: packageForm.duration.trim() || "Custom Duration",
+      price: packageForm.price.trim(),
+      image: packageForm.image.trim() || "/packages/adventure.jfif",
+      heroImage:
+        packageForm.heroImage.trim() ||
+        packageForm.image.trim() ||
+        "/packages/adventure.jfif",
+      mapImage: packageForm.mapImage.trim() || "/packages/maptest1.png",
+      galleryImages:
+        parsedGalleryImages.length > 0
+          ? parsedGalleryImages
+          : [packageForm.image.trim() || "/packages/adventure.jfif"],
+      travelStyle: packageForm.travelStyle.trim(),
+      guideInfo: packageForm.guideInfo.trim(),
+      accommodation: packageForm.accommodation.trim(),
+      meals: packageForm.meals.trim(),
+      flightInfo: packageForm.flightInfo.trim(),
+      roomType: packageForm.roomType.trim(),
+      highlights: packageForm.highlights.trim(),
+      upgradeNote: packageForm.upgradeNote.trim(),
+      includedExperiences: parsedIncludedExperiences,
+      itinerary: parsedItinerary,
       status: packageForm.status,
     };
 
-    setTravelPackages((prev) => [newPackage, ...prev]);
+    if (editingPackageId) {
+      setTravelPackages((prev) =>
+        prev.map((item) => (item.id === editingPackageId ? newPackage : item))
+      );
+      setPackageSuccess("Package updated successfully.");
+    } else {
+      setTravelPackages((prev) => [newPackage, ...prev]);
+      setPackageSuccess("Package added successfully.");
+    }
+
+    resetPackageForm();
+  };
+
+  const handleEditPackage = (pkg: TravelPackage) => {
+    setPackageError("");
+    setPackageSuccess("");
+    setEditingPackageId(pkg.id);
 
     setPackageForm({
-      title: "",
-      location: "",
-      duration: "",
-      price: "",
-      image: "",
-      description: "",
-      status: "Draft",
+      category: pkg.category || "round-tours",
+      title: pkg.title || "",
+      slug: pkg.slug || "",
+      subtitle: pkg.subtitle || "",
+      shortDescription: pkg.shortDescription || "",
+      longDescription: pkg.longDescription || "",
+      overviewTitle: pkg.overviewTitle || "",
+      location: pkg.location || "",
+      route: pkg.route || "",
+      routeSummary: pkg.routeSummary || "",
+      duration: pkg.duration || "",
+      price: pkg.price || "",
+      image: pkg.image || "",
+      heroImage: pkg.heroImage || "",
+      mapImage: pkg.mapImage || "",
+      galleryImagesText: pkg.galleryImages?.join("\n") || "",
+      travelStyle: pkg.travelStyle || "",
+      guideInfo: pkg.guideInfo || "",
+      accommodation: pkg.accommodation || "",
+      meals: pkg.meals || "",
+      flightInfo: pkg.flightInfo || "",
+      roomType: pkg.roomType || "",
+      highlights: pkg.highlights || "",
+      upgradeNote: pkg.upgradeNote || "",
+      includedExperiencesText: pkg.includedExperiences?.join("\n") || "",
+      status: pkg.status || "Draft",
     });
+
+    setItineraryDays(
+      pkg.itinerary && pkg.itinerary.length > 0
+        ? pkg.itinerary.map((day, index) => ({
+            day: index + 1,
+            title: day.title || "",
+            itemsText: day.items?.join("\n") || "",
+          }))
+        : [{ day: 1, title: "", itemsText: "" }]
+    );
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeletePackage = (packageId: number) => {
+    const selected = travelPackages.find((item) => item.id === packageId);
+    if (!selected) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${selected.title}"?`
+    );
+
+    if (!confirmed) return;
+
+    setTravelPackages((prev) => prev.filter((item) => item.id !== packageId));
+
+    if (editingPackageId === packageId) {
+      resetPackageForm();
+    }
+
+    setPackageSuccess("Package deleted successfully.");
   };
 
   const handleEditBlog = (blog: BlogPost) => {
@@ -409,7 +635,7 @@ export default function AdminManagePage() {
         <section className="flex-1">
           <AdminTopbar
             title="Manage Travel Packages & Blogs"
-            subtitle="Create and preview package and blog entries."
+            subtitle="Create package details for slug pages and manage blog content."
           />
 
           <div className="p-5 sm:p-8">
@@ -421,21 +647,111 @@ export default function AdminManagePage() {
                       <Plus className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold">Add Travel Package</h3>
+                      <h3 className="text-lg font-bold">
+                        {editingPackageId ? "Edit Travel Package" : "Add Travel Package"}
+                      </h3>
                       <p className="text-sm text-[#5f7d74]">
-                        Create a new package card for the website.
+                        Add all details needed for the package slug page.
                       </p>
                     </div>
                   </div>
 
                   <form onSubmit={handleAddPackage} className="space-y-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Package Category
+                      </label>
+                      <select
+                        value={packageForm.category}
+                        onChange={(e) =>
+                          setPackageForm((prev) => ({
+                            ...prev,
+                            category: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                      >
+                        {packageCategoryOptions.map((category) => (
+                          <option key={category.slug} value={category.slug}>
+                            {category.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <InputField
                       label="Package Title"
                       value={packageForm.title}
                       onChange={(value) =>
                         setPackageForm((prev) => ({ ...prev, title: value }))
                       }
-                      placeholder="Ex: Luxury South Coast Tour"
+                      placeholder="Ex: Luxury South Coast Escape"
+                    />
+
+                    <InputField
+                      label="Package Slug (optional)"
+                      value={packageForm.slug}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({ ...prev, slug: value }))
+                      }
+                      placeholder="Ex: luxury-south-coast-escape"
+                    />
+
+                    <InputField
+                      label="Subtitle"
+                      value={packageForm.subtitle}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({ ...prev, subtitle: value }))
+                      }
+                      placeholder="Short subtitle for the hero section"
+                    />
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Short Description
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={packageForm.shortDescription}
+                        onChange={(e) =>
+                          setPackageForm((prev) => ({
+                            ...prev,
+                            shortDescription: e.target.value,
+                          }))
+                        }
+                        placeholder="Short package description..."
+                        className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Long Description
+                      </label>
+                      <textarea
+                        rows={6}
+                        value={packageForm.longDescription}
+                        onChange={(e) =>
+                          setPackageForm((prev) => ({
+                            ...prev,
+                            longDescription: e.target.value,
+                          }))
+                        }
+                        placeholder="Full overview description..."
+                        className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                      />
+                    </div>
+
+                    <InputField
+                      label="Overview Title"
+                      value={packageForm.overviewTitle}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          overviewTitle: value,
+                        }))
+                      }
+                      placeholder="Ex: A premium island journey blending culture, coast, and comfort"
                     />
 
                     <InputField
@@ -444,7 +760,28 @@ export default function AdminManagePage() {
                       onChange={(value) =>
                         setPackageForm((prev) => ({ ...prev, location: value }))
                       }
-                      placeholder="Ex: Galle"
+                      placeholder="Ex: Colombo / Kandy / Ella / Galle"
+                    />
+
+                    <InputField
+                      label="Route"
+                      value={packageForm.route}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({ ...prev, route: value }))
+                      }
+                      placeholder="Detailed route"
+                    />
+
+                    <InputField
+                      label="Route Summary"
+                      value={packageForm.routeSummary}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          routeSummary: value,
+                        }))
+                      }
+                      placeholder="Short route summary"
                     />
 
                     <InputField
@@ -453,7 +790,7 @@ export default function AdminManagePage() {
                       onChange={(value) =>
                         setPackageForm((prev) => ({ ...prev, duration: value }))
                       }
-                      placeholder="Ex: 5 Days / 4 Nights"
+                      placeholder="Ex: 7 Days / 6 Nights"
                     />
 
                     <InputField
@@ -462,34 +799,253 @@ export default function AdminManagePage() {
                       onChange={(value) =>
                         setPackageForm((prev) => ({ ...prev, price: value }))
                       }
-                      placeholder="Ex: $450"
+                      placeholder="Ex: $950"
                     />
 
                     <InputField
-                      label="Image URL"
+                      label="Card Image URL"
                       value={packageForm.image}
                       onChange={(value) =>
                         setPackageForm((prev) => ({ ...prev, image: value }))
                       }
-                      placeholder="Paste image URL"
+                      placeholder="Package card image"
+                    />
+
+                    <InputField
+                      label="Hero Image URL"
+                      value={packageForm.heroImage}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          heroImage: value,
+                        }))
+                      }
+                      placeholder="Hero section image"
+                    />
+
+                    <InputField
+                      label="Map Image URL"
+                      value={packageForm.mapImage}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          mapImage: value,
+                        }))
+                      }
+                      placeholder="Route map image"
                     />
 
                     <div>
                       <label className="mb-2 block text-sm font-medium">
-                        Description
+                        Gallery Images
                       </label>
                       <textarea
                         rows={5}
-                        value={packageForm.description}
+                        value={packageForm.galleryImagesText}
                         onChange={(e) =>
                           setPackageForm((prev) => ({
                             ...prev,
-                            description: e.target.value,
+                            galleryImagesText: e.target.value,
                           }))
                         }
-                        placeholder="Package description..."
+                        placeholder={`Paste one image URL per line`}
                         className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
                       />
+                    </div>
+
+                    <InputField
+                      label="Travel Style"
+                      value={packageForm.travelStyle}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          travelStyle: value,
+                        }))
+                      }
+                      placeholder="Ex: Private / Small Group"
+                    />
+
+                    <InputField
+                      label="Guide Info"
+                      value={packageForm.guideInfo}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          guideInfo: value,
+                        }))
+                      }
+                      placeholder="Ex: English / German Guide Included"
+                    />
+
+                    <InputField
+                      label="Accommodation"
+                      value={packageForm.accommodation}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          accommodation: value,
+                        }))
+                      }
+                      placeholder="Ex: Boutique Hotels & 4-Star Stays"
+                    />
+
+                    <InputField
+                      label="Meals"
+                      value={packageForm.meals}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({ ...prev, meals: value }))
+                      }
+                      placeholder="Ex: Breakfast & Dinner"
+                    />
+
+                    <InputField
+                      label="Flight Info"
+                      value={packageForm.flightInfo}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          flightInfo: value,
+                        }))
+                      }
+                      placeholder="Ex: International Flights Not Included"
+                    />
+
+                    <InputField
+                      label="Room Type"
+                      value={packageForm.roomType}
+                      onChange={(value) =>
+                        setPackageForm((prev) => ({
+                          ...prev,
+                          roomType: value,
+                        }))
+                      }
+                      placeholder="Ex: Double / Twin Room"
+                    />
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Highlights
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={packageForm.highlights}
+                        onChange={(e) =>
+                          setPackageForm((prev) => ({
+                            ...prev,
+                            highlights: e.target.value,
+                          }))
+                        }
+                        placeholder="Package highlights..."
+                        className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Upgrade Note
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={packageForm.upgradeNote}
+                        onChange={(e) =>
+                          setPackageForm((prev) => ({
+                            ...prev,
+                            upgradeNote: e.target.value,
+                          }))
+                        }
+                        placeholder="Optional pricing or upgrade note..."
+                        className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Included Experiences
+                      </label>
+                      <textarea
+                        rows={6}
+                        value={packageForm.includedExperiencesText}
+                        onChange={(e) =>
+                          setPackageForm((prev) => ({
+                            ...prev,
+                            includedExperiencesText: e.target.value,
+                          }))
+                        }
+                        placeholder={`Add one included experience per line`}
+                        className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                      />
+                    </div>
+
+                    <div className="rounded-[24px] border border-[#d7e5df] bg-[#f8fbfa] p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="font-semibold">Itinerary Days</h4>
+                          <p className="text-sm text-[#5f7d74]">
+                            Add each day with title and bullet points.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAddItineraryDay}
+                          className="rounded-2xl bg-[#0d5c46] px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Add Day
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {itineraryDays.map((day) => (
+                          <div
+                            key={day.day}
+                            className="rounded-2xl border border-[#d7e5df] bg-white p-4"
+                          >
+                            <div className="mb-3 flex items-center justify-between">
+                              <h5 className="font-semibold">Day {day.day}</h5>
+
+                              {itineraryDays.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveItineraryDay(day.day)}
+                                  className="text-sm font-semibold text-red-600"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="space-y-3">
+                              <InputField
+                                label="Day Title"
+                                value={day.title}
+                                onChange={(value) =>
+                                  handleItineraryChange(day.day, "title", value)
+                                }
+                                placeholder={`Ex: Arrival in Colombo`}
+                              />
+
+                              <div>
+                                <label className="mb-2 block text-sm font-medium">
+                                  Day Items
+                                </label>
+                                <textarea
+                                  rows={5}
+                                  value={day.itemsText}
+                                  onChange={(e) =>
+                                    handleItineraryChange(
+                                      day.day,
+                                      "itemsText",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Add one activity per line"
+                                  className="w-full rounded-2xl border border-[#d7e5df] bg-[#f8fbfa] px-4 py-3 text-sm outline-none transition focus:border-[#0d5c46]"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div>
@@ -511,12 +1067,36 @@ export default function AdminManagePage() {
                       </select>
                     </div>
 
-                    <button
-                      type="submit"
-                      className="w-full rounded-2xl bg-[#0d5c46] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#094735]"
-                    >
-                      Save Package
-                    </button>
+                    {packageError && (
+                      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {packageError}
+                      </div>
+                    )}
+
+                    {packageSuccess && (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {packageSuccess}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="submit"
+                        className="flex-1 rounded-2xl bg-[#0d5c46] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#094735]"
+                      >
+                        {editingPackageId ? "Update Package" : "Save Package"}
+                      </button>
+
+                      {editingPackageId && (
+                        <button
+                          type="button"
+                          onClick={resetPackageForm}
+                          className="rounded-2xl border border-[#d7e5df] bg-white px-5 py-4 text-sm font-semibold text-[#123128] transition hover:bg-[#f8fbfa]"
+                        >
+                          Cancel Edit
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -525,7 +1105,7 @@ export default function AdminManagePage() {
                     <div>
                       <h3 className="text-lg font-bold">All Travel Packages</h3>
                       <p className="text-sm text-[#5f7d74]">
-                        Preview of hardcoded package items.
+                        Preview of package cards and slug-ready package data.
                       </p>
                     </div>
 
@@ -558,6 +1138,9 @@ export default function AdminManagePage() {
                                 <p className="mt-1 text-sm text-[#5f7d74]">
                                   {item.location}
                                 </p>
+                                <p className="mt-1 text-xs text-[#7a948b]">
+                                  Category: {item.category} • Slug: {item.slug}
+                                </p>
                               </div>
 
                               <span
@@ -571,10 +1154,16 @@ export default function AdminManagePage() {
                               </span>
                             </div>
 
+                            {item.shortDescription && (
+                              <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#4f6b63]">
+                                {item.shortDescription}
+                              </p>
+                            )}
+
                             <div className="mt-4 flex flex-wrap gap-3 text-sm text-[#34534a]">
                               <span className="flex items-center gap-2 rounded-full bg-[#f3f8f6] px-3 py-2">
                                 <MapPin className="h-4 w-4" />
-                                {item.location}
+                                {item.location || "Sri Lanka"}
                               </span>
                               <span className="flex items-center gap-2 rounded-full bg-[#f3f8f6] px-3 py-2">
                                 <Calendar className="h-4 w-4" />
@@ -587,10 +1176,18 @@ export default function AdminManagePage() {
                             </div>
 
                             <div className="mt-5 flex flex-wrap gap-3">
-                              <button className="rounded-2xl bg-[#0d5c46] px-4 py-2.5 text-sm font-semibold text-white">
+                              <button
+                                type="button"
+                                onClick={() => handleEditPackage(item)}
+                                className="rounded-2xl bg-[#0d5c46] px-4 py-2.5 text-sm font-semibold text-white"
+                              >
                                 Edit
                               </button>
-                              <button className="rounded-2xl border border-[#d7e5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#123128]">
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePackage(item.id)}
+                                className="rounded-2xl border border-[#d7e5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#123128]"
+                              >
                                 Delete
                               </button>
                             </div>
@@ -820,12 +1417,9 @@ export default function AdminManagePage() {
                               </div>
 
                               {item.description && (
-                                <div
-                                  className="mt-3 line-clamp-3 text-sm text-[#4f6b63]"
-                                  dangerouslySetInnerHTML={{
-                                    __html: item.description,
-                                  }}
-                                />
+                                <p className="mt-3 line-clamp-2 max-w-3xl text-sm leading-6 text-[#4f6b63]">
+                                  {stripHtml(item.description)}
+                                </p>
                               )}
 
                               <div className="mt-4 flex flex-wrap gap-3 text-sm text-[#34534a]">

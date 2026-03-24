@@ -2,129 +2,50 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronRight, Menu, X } from "lucide-react";
 
 const waysToTravel = [
   {
     title: "Round Tours",
-    href: "/ways-to-travel/round-tours",
-    links: [
-      {
-        name: "Classic Sri Lanka Highlights",
-        href: "/ways-to-travel/round-tours/classic-sri-lanka-highlights",
-      },
-      {
-        name: "Cultural Triangle Journey",
-        href: "/ways-to-travel/round-tours/cultural-triangle-journey",
-      },
-      {
-        name: "South Coast Explorer",
-        href: "/ways-to-travel/round-tours/south-coast-explorer",
-      },
-    ],
+    href: "/packages/roundtours",
   },
   {
     title: "Retreat Tours",
-    href: "/ways-to-travel/retreat-tours",
-    links: [
-      {
-        name: "Ayurveda Wellness Retreat",
-        href: "/ways-to-travel/retreat-tours/ayurveda-wellness-retreat",
-      },
-      {
-        name: "Yoga & Nature Escape",
-        href: "/ways-to-travel/retreat-tours/yoga-nature-escape",
-      },
-      {
-        name: "Mindfulness in the Hills",
-        href: "/ways-to-travel/retreat-tours/mindfulness-in-the-hills",
-      },
-    ],
+    href: "/packages/retreat-tours",
   },
   {
     title: "Customize Your Own Trip",
-    href: "/ways-to-travel/customize-your-own-trip",
-    links: [
-      {
-        name: "Build Your Itinerary",
-        href: "/ways-to-travel/customize-your-own-trip/build-your-itinerary",
-      },
-      {
-        name: "Choose Your Experiences",
-        href: "/ways-to-travel/customize-your-own-trip/choose-your-experiences",
-      },
-      {
-        name: "Private Driver & Guide",
-        href: "/ways-to-travel/customize-your-own-trip/private-driver-guide",
-      },
-    ],
+    href: "/packages/customize-your-own-trip",
   },
   {
     title: "Beach Holiday",
-    href: "/ways-to-travel/beach-holiday",
-    links: [
-      {
-        name: "South Coast Beach Escape",
-        href: "/ways-to-travel/beach-holiday/south-coast-beach-escape",
-      },
-      {
-        name: "East Coast Sun & Sand",
-        href: "/ways-to-travel/beach-holiday/east-coast-sun-sand",
-      },
-      {
-        name: "Luxury Beach Stay",
-        href: "/ways-to-travel/beach-holiday/luxury-beach-stay",
-      },
-    ],
+    href: "/packages/beach-holiday",
   },
   {
     title: "Long Stay",
-    href: "/ways-to-travel/long-stay",
-    links: [
-      {
-        name: "Slow Travel by the Coast",
-        href: "/ways-to-travel/long-stay/slow-travel-by-the-coast",
-      },
-      {
-        name: "Monthly Villa Stays",
-        href: "/ways-to-travel/long-stay/monthly-villa-stays",
-      },
-      {
-        name: "Remote Work in Sri Lanka",
-        href: "/ways-to-travel/long-stay/remote-work-in-sri-lanka",
-      },
-    ],
+    href: "/packages/long-stay",
   },
   {
     title: "Seasonal Travelling",
-    href: "/ways-to-travel/seasonal-travelling",
-    links: [
-      {
-        name: "Best of December Travel",
-        href: "/ways-to-travel/seasonal-travelling/best-of-december-travel",
-      },
-      {
-        name: "Summer Coast Adventures",
-        href: "/ways-to-travel/seasonal-travelling/summer-coast-adventures",
-      },
-      {
-        name: "Monsoon Escape Planner",
-        href: "/ways-to-travel/seasonal-travelling/monsoon-escape-planner",
-      },
-    ],
+    href: "/packages/seasonal-travelling",
   },
 ];
 
+type TravelGroup = {
+  title: string;
+  href: string;
+};
+
 type MegaDropdownProps = {
   title: string;
-  groups: {
-    title: string;
-    href: string;
-    links: { name: string; href: string }[];
-  }[];
+  groups: TravelGroup[];
   pathname: string;
+};
+
+const isGroupPathActive = (pathname: string, href: string) => {
+  return pathname === href || pathname.startsWith(`${href}/`);
 };
 
 function DesktopMegaDropdown({
@@ -132,20 +53,25 @@ function DesktopMegaDropdown({
   groups,
   pathname,
 }: MegaDropdownProps) {
-  const [activeGroup, setActiveGroup] = useState(groups[0]);
+  const matchedGroup = useMemo(
+    () => groups.find((group) => isGroupPathActive(pathname, group.href)),
+    [groups, pathname]
+  );
+
+  const [hoveredGroup, setHoveredGroup] = useState<TravelGroup>(groups[0]);
+
+  const activeGroup = matchedGroup ?? hoveredGroup;
 
   const isDropdownActive =
-    pathname.startsWith("/ways-to-travel") ||
-    groups.some(
-      (group) =>
-        pathname === group.href ||
-        group.links.some((link) => pathname === link.href)
-    );
+    pathname.startsWith("/packages") ||
+    groups.some((group) => isGroupPathActive(pathname, group.href));
 
   return (
     <div
       className="group relative"
-      onMouseEnter={() => setActiveGroup(groups[0])}
+      onMouseEnter={() => {
+        if (!matchedGroup) setHoveredGroup(groups[0]);
+      }}
     >
       <button
         className={`flex items-center gap-1 text-sm font-medium transition ${
@@ -170,10 +96,9 @@ function DesktopMegaDropdown({
         />
       </button>
 
-      <div className="invisible absolute left-1/2 top-full z-50 mt-4 w-[880px] -translate-x-1/2 translate-y-3 opacity-0 transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+      <div className="invisible absolute left-1/2 top-full z-50 mt-4 w-[820px] -translate-x-1/2 translate-y-3 opacity-0 transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
         <div className="overflow-hidden rounded-[28px] border border-borderlight bg-white shadow-2xl">
-          <div className="grid min-h-[430px] grid-cols-[260px_1fr]">
-            {/* Left Side */}
+          <div className="grid min-h-[400px] grid-cols-[260px_1fr]">
             <div className="border-r border-borderlight bg-[#faf8f5] p-5">
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.25em] text-textsecondary">
                 Explore Sri Lanka
@@ -181,32 +106,30 @@ function DesktopMegaDropdown({
 
               <div className="space-y-2">
                 {groups.map((group) => {
-                  const isActive =
-                    activeGroup.title === group.title ||
-                    pathname === group.href ||
-                    group.links.some((link) => pathname === link.href);
+                  const isActive = isGroupPathActive(pathname, group.href);
+                  const isPreviewActive = activeGroup.title === group.title;
 
                   return (
-                    <button
+                    <Link
                       key={group.title}
-                      onMouseEnter={() => setActiveGroup(group)}
+                      href={group.href}
+                      onMouseEnter={() => setHoveredGroup(group)}
                       className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
-                        isActive
+                        isActive || isPreviewActive
                           ? "bg-white text-primary shadow-sm"
                           : "text-textmain hover:bg-white hover:text-primary"
                       }`}
                     >
                       <span>{group.title}</span>
                       <ChevronRight className="h-4 w-4" />
-                    </button>
+                    </Link>
                   );
                 })}
               </div>
             </div>
 
-            {/* Right Side */}
-            <div className="p-7">
-              <div className="mb-6">
+            <div className="flex flex-col justify-between p-7">
+              <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-textsecondary">
                   Ways to travel
                 </p>
@@ -218,48 +141,18 @@ function DesktopMegaDropdown({
                   {activeGroup.title}
                 </Link>
 
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-textsecondary">
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-textsecondary">
                   Discover thoughtfully designed Sri Lanka experiences built
                   around your travel style, pace, and interests.
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                {activeGroup.links.map((link) => {
-                  const isActive = pathname === link.href;
-
-                  return (
-                    <Link
-                      key={link.name}
-                      href={link.href}
-                      className={`rounded-2xl border p-4 transition ${
-                        isActive
-                          ? "border-primary bg-primary/5"
-                          : "border-borderlight bg-white hover:border-primary/30 hover:bg-background"
-                      }`}
-                    >
-                      <p
-                        className={`text-sm font-semibold ${
-                          isActive ? "text-primary" : "text-textmain"
-                        }`}
-                      >
-                        {link.name}
-                      </p>
-                      <p className="mt-2 text-xs leading-5 text-textsecondary">
-                        Explore this travel style and view curated options for
-                        your journey.
-                      </p>
-                    </Link>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6">
+              <div className="mt-8">
                 <Link
-                  href="/ways-to-travel"
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark"
+                  href={activeGroup.href}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-dark"
                 >
-                  View all ways to travel
+                  View {activeGroup.title} Packages
                   <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -273,11 +166,7 @@ function DesktopMegaDropdown({
 
 type MobileMegaDropdownProps = {
   title: string;
-  groups: {
-    title: string;
-    href: string;
-    links: { name: string; href: string }[];
-  }[];
+  groups: TravelGroup[];
   isOpen: boolean;
   onToggle: () => void;
   onLinkClick: () => void;
@@ -292,15 +181,18 @@ function MobileMegaDropdown({
   onLinkClick,
   pathname,
 }: MobileMegaDropdownProps) {
-  const [openGroup, setOpenGroup] = useState<string | null>(groups[0].title);
+  const matchedGroup = useMemo(
+    () => groups.find((group) => isGroupPathActive(pathname, group.href)),
+    [groups, pathname]
+  );
+
+  const [openGroup, setOpenGroup] = useState<string | null>(
+    matchedGroup?.title ?? groups[0].title
+  );
 
   const isDropdownActive =
-    pathname.startsWith("/ways-to-travel") ||
-    groups.some(
-      (group) =>
-        pathname === group.href ||
-        group.links.some((link) => pathname === link.href)
-    );
+    pathname.startsWith("/packages") ||
+    groups.some((group) => isGroupPathActive(pathname, group.href));
 
   return (
     <div
@@ -334,11 +226,9 @@ function MobileMegaDropdown({
 
           <div className="space-y-2">
             {groups.map((group) => {
-              const groupActive =
-                pathname === group.href ||
-                group.links.some((link) => pathname === link.href);
-
-              const groupOpen = openGroup === group.title;
+              const groupActive = isGroupPathActive(pathname, group.href);
+              const groupOpen =
+                openGroup === group.title || matchedGroup?.title === group.title;
 
               return (
                 <div
@@ -372,31 +262,10 @@ function MobileMegaDropdown({
                       <Link
                         href={group.href}
                         onClick={onLinkClick}
-                        className="mb-2 block rounded-lg bg-primary/5 px-3 py-2 text-sm font-medium text-primary"
+                        className="block rounded-lg bg-primary px-3 py-2 text-center text-sm font-medium text-white"
                       >
-                        View {group.title}
+                        View {group.title} Packages
                       </Link>
-
-                      <div className="space-y-1">
-                        {group.links.map((link) => {
-                          const isActive = pathname === link.href;
-
-                          return (
-                            <Link
-                              key={link.name}
-                              href={link.href}
-                              onClick={onLinkClick}
-                              className={`block rounded-lg px-3 py-2 text-sm transition ${
-                                isActive
-                                  ? "bg-primary text-white"
-                                  : "text-textsecondary hover:bg-background hover:text-primary"
-                              }`}
-                            >
-                              {link.name}
-                            </Link>
-                          );
-                        })}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -405,11 +274,11 @@ function MobileMegaDropdown({
           </div>
 
           <Link
-            href="/ways-to-travel"
+            href="/packages"
             onClick={onLinkClick}
             className="mt-3 block rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-white"
           >
-            View all ways to travel
+            View All Packages
           </Link>
         </div>
       )}
@@ -657,4 +526,4 @@ export default function Navbar() {
       )}
     </header>
   );
-}
+} 
